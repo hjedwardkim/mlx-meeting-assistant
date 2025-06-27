@@ -10,6 +10,7 @@ import mlx_whisper
 def transcribe_audio(
     file_path: str,
     model: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    # model: str = "mlx-community/whisper-large-v3-mlx",
     output_file: Optional[str] = None,
 ) -> str:
     """
@@ -44,4 +45,3 @@ def transcribe_audio(
 
     except Exception as e:
         raise RuntimeError(f"Transcription failed: {str(e)}")
-

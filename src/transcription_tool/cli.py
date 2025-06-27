@@ -59,7 +59,9 @@ def transcribe(file_path: str, model: str, output: str):
     help="MLX LM model to use",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path for summary")
-@click.option("--max-tokens", default=500, type=int, help="Maximum tokens for summary")
+@click.option(
+    "--max-tokens", default=10000, type=int, help="Maximum tokens for summary"
+)
 def summarize(text_input: str, model: str, output: str, max_tokens: int):
     """Summarize text from file or stdin."""
     try:

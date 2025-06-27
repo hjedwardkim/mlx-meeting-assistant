@@ -1,6 +1,5 @@
 """Pipeline module for orchestrating transcription and summarization."""
 
-from pathlib import Path
 from typing import Optional, Tuple
 
 from .transcription import transcribe_audio
@@ -53,4 +52,3 @@ def run_pipeline(
 
     except Exception as e:
         raise RuntimeError(f"Pipeline failed: {str(e)}")
-
