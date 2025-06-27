@@ -21,7 +21,8 @@ def main():
 @click.option(
     "--model",
     "-m",
-    default="mlx-community/parakeet-tdt-0.6b-v2",
+    # default="mlx-community/parakeet-tdt-0.6b-v2",
+    default="mlx-community/whisper-large-v3-mlx",
     help="MLX Whisper model to use",
 )
 @click.option(
@@ -102,7 +103,7 @@ def summarize(text_input: str, model: str, output: str, max_tokens: int):
 @click.argument("file_path", type=click.Path(exists=True))
 @click.option(
     "--transcription-model",
-    default="mlx-community/parakeet-tdt-0.6b-v2",
+    default="mlx-community/whisper-large-v3-mlx",
     help="MLX Whisper model to use",
 )
 @click.option(

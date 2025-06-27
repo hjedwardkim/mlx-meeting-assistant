@@ -9,8 +9,8 @@ import mlx_whisper
 
 def transcribe_audio(
     file_path: str,
-    model: str = "mlx-community/parakeet-tdt-0.6b-v2",
-    # model: str = "mlx-community/whisper-large-v3-mlx",
+    # model: str = "mlx-community/parakeet-tdt-0.6b-v2",
+    model: str = "mlx-community/whisper-large-v3-mlx",
     output_file: Optional[str] = None,
 ) -> str:
     """
@@ -32,7 +32,19 @@ def transcribe_audio(
         raise FileNotFoundError(f"Input file not found: {file_path}")
 
     try:
-        result = mlx_whisper.transcribe(file_path, path_or_hf_repo=model)
+        transcribe_options = {
+            "temperature": 0.0,
+            "no_speech_threshold": 0.6,
+            "logprob_threshold": -1.0,
+            "compression_ratio_threshold": 2.4,  # lower if repetition happens
+            "condition_on_previous_text": False,  # true can cause repetition
+        }
+
+        result = mlx_whisper.transcribe(
+            file_path,
+            path_or_hf_repo=model,
+            **transcribe_options,
+        )
         transcription = result["text"]
 
         if output_file:
