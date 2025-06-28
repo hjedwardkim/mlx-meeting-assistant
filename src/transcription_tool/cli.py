@@ -1,4 +1,4 @@
-"""CLI interface for the transcription tool with diarization support."""
+"""CLI interface for the transcription tool with FFmpeg audio preprocessing support."""
 
 import sys
 from pathlib import Path
@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from .transcription import transcribe_audio
 from .summarization import summarize_text
 from .pipeline import run_pipeline, run_diarization_pipeline
+from .diarization import diagnose_audio_compatibility
+from .audio_preprocessing import probe_ffmpeg_availability
 
 load_dotenv()
 
@@ -61,7 +63,7 @@ def transcribe(file_path: str, model: str, output: str):
 @click.option(
     "--model",
     "-m",
-    default="mlx-community/Qwen3-30B-A3B-MLX-8bit",
+    default="mlx-community/Qwen3-30B-A3B-8bit",
     help="MLX LM model to use",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path for summary")
@@ -138,7 +140,7 @@ def summarize(
 )
 @click.option(
     "--summarization-model",
-    default="mlx-community/Qwen3-30B-A3B-MLX-8bit",
+    default="mlx-community/Qwen3-30B-A3B-8bit",
     help="MLX LM model to use",
 )
 @click.option(
@@ -231,7 +233,7 @@ def pipeline(
 )
 @click.option(
     "--summarization-model",
-    default="mlx-community/Qwen3-30B-A3B-MLX-8bit",
+    default="mlx-community/Qwen3-30B-A3B-8bit",
     help="MLX LM model to use",
 )
 @click.option(
@@ -263,6 +265,11 @@ def pipeline(
     default="general",
     help="Type of meeting for specialized formatting",
 )
+@click.option(
+    "--check-compatibility",
+    is_flag=True,
+    help="Check audio file compatibility before processing",
+)
 def diarize(
     file_path: str,
     transcription_model: str,
@@ -278,9 +285,41 @@ def diarize(
     max_tokens: int,
     structured: bool,
     meeting_type: str,
+    check_compatibility: bool,
 ):
     """Complete diarization pipeline: transcription + speaker identification + summarization."""
     try:
+        # Check audio compatibility if requested
+        if check_compatibility:
+            click.echo("Checking audio file compatibility...")
+            diagnosis = diagnose_audio_compatibility(file_path)
+
+            click.echo(f"File: {diagnosis['file_path']}")
+            click.echo(f"Format: {Path(file_path).suffix}")
+
+            for rec in diagnosis["recommendations"]:
+                click.echo(rec)
+
+            if (
+                not diagnosis["validation"]["is_valid"]
+                and not diagnosis["validation"]["needs_conversion"]
+            ):
+                click.echo("\nAudio file is not compatible with diarization.", err=True)
+                sys.exit(1)
+
+            click.echo("")  # Add spacing
+
+        # Check FFmpeg availability
+        ffmpeg_status = probe_ffmpeg_availability()
+        if not ffmpeg_status["available"]:
+            click.echo(
+                "Warning: FFmpeg not available for audio preprocessing.\n"
+                f"Error: {ffmpeg_status.get('error', 'Unknown error')}\n"
+                "Install FFmpeg: https://ffmpeg.org/download.html\n"
+                "Note: Audio files must be in WAV format without FFmpeg.\n",
+                err=True,
+            )
+
         if not hf_token:
             click.echo(
                 "Error: HuggingFace token required for diarization.\n"
@@ -311,6 +350,11 @@ def diarize(
             save_rttm = transcriptions_dir / f"{input_path.stem}.rttm"
 
         click.echo("Running diarization pipeline...")
+        file_format = Path(file_path).suffix.lower()
+        if file_format in [".mp3", ".m4a", ".mp4"]:
+            click.echo(
+                f"Note: {file_format} format detected. Will convert to WAV for diarization."
+            )
         click.echo("This may take several minutes for longer audio files.")
 
         transcript, summary, aligned_segments = run_diarization_pipeline(
@@ -346,6 +390,111 @@ def diarize(
         click.echo("SPEAKER-ATTRIBUTED MEETING NOTES" if structured else "SUMMARY")
         click.echo("=" * 60)
         click.echo(summary)
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("file_path", type=click.Path(exists=True))
+def diagnose(file_path: str):
+    """Diagnose audio file compatibility with diarization pipeline."""
+    try:
+        click.echo("Diagnosing audio file compatibility...\n")
+
+        diagnosis = diagnose_audio_compatibility(file_path)
+
+        click.echo(f"📁 File: {diagnosis['file_path']}")
+        click.echo(f"📋 Format: {Path(file_path).suffix}")
+
+        # Show validation results
+        validation = diagnosis["validation"]
+        click.echo(f"✓ Valid: {'Yes' if validation['is_valid'] else 'No'}")
+        click.echo(
+            f"🔄 Needs conversion: {'Yes' if validation['needs_conversion'] else 'No'}"
+        )
+
+        # Show issues if any
+        if validation["issues"]:
+            click.echo("\n⚠️  Issues found:")
+            for issue in validation["issues"]:
+                click.echo(f"   • {issue}")
+
+        # Show FFmpeg availability
+        ffmpeg_status = diagnosis["ffmpeg_available"]
+        click.echo(f"\n🔧 FFmpeg status:")
+        click.echo(f"   • Available: {'✓' if ffmpeg_status['available'] else '✗'}")
+        if not ffmpeg_status["available"] and ffmpeg_status.get("error"):
+            click.echo(f"   • Error: {ffmpeg_status['error']}")
+
+        # Show recommendations
+        click.echo("\n💡 Recommendations:")
+        for rec in diagnosis["recommendations"]:
+            click.echo(f"   {rec}")
+
+        # Final assessment
+        can_process = validation["is_valid"] or (
+            validation["needs_conversion"] and ffmpeg_status["available"]
+        )
+
+        if can_process:
+            click.echo(f"\n✅ File can be processed with diarization pipeline")
+        else:
+            click.echo(f"\n❌ File cannot be processed - see recommendations above")
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+def check_deps():
+    """Check system dependencies for audio processing."""
+    try:
+        click.echo("Checking system dependencies...\n")
+
+        # Check FFmpeg
+        ffmpeg_status = probe_ffmpeg_availability()
+        click.echo("🔧 Audio Preprocessing:")
+        if ffmpeg_status["available"]:
+            click.echo("   • FFmpeg: ✓ Available")
+        else:
+            click.echo("   • FFmpeg: ✗ Not available")
+            if ffmpeg_status.get("error"):
+                click.echo(f"     Error: {ffmpeg_status['error']}")
+
+        # Check MLX dependencies (basic check)
+        try:
+            import mlx_whisper
+
+            click.echo("🎤 MLX Whisper: ✓ Available")
+        except ImportError:
+            click.echo("🎤 MLX Whisper: ✗ Not installed")
+
+        try:
+            import mlx_lm
+
+            click.echo("🧠 MLX LM: ✓ Available")
+        except ImportError:
+            click.echo("🧠 MLX LM: ✗ Not installed")
+
+        try:
+            import pyannote.audio
+
+            click.echo("👥 Pyannote Audio: ✓ Available")
+        except ImportError:
+            click.echo("👥 Pyannote Audio: ✗ Not installed")
+
+        # Recommendations
+        click.echo("\n💡 Installation recommendations:")
+        if not ffmpeg_status["available"]:
+            click.echo("   • Install FFmpeg: https://ffmpeg.org/download.html")
+            click.echo("   • macOS: brew install ffmpeg")
+            click.echo("   • Ubuntu: sudo apt install ffmpeg")
+
+        click.echo("\n✅ Dependency check complete")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

@@ -132,7 +132,7 @@ meeting-assistant diarize meeting.mp4 \
 
 - **Transcription**: `mlx-community/whisper-large-v3-mlx`
 - **Diarization**: `pyannote/speaker-diarization-3.1`
-- **Summarization**: `lmstudio-community/Qwen3-30B-A3B-MLX-8bit`
+- **Summarization**: `lmstudio-community/Qwen3-30B-A3B-8bit`
 
 ### Custom Models
 
@@ -182,7 +182,7 @@ meeting-assistant diarize meeting.mp4 --min-speakers 2 --max-speakers 4
 meeting-assistant diarize interview.m4a \
   --transcription-model mlx-community/whisper-large-v3-turbo \
   --diarization-model pyannote/speaker-diarization-3.1 \
-  --summarization-model mlx-community/Qwen3-30B-A3B-MLX-8bit \
+  --summarization-model mlx-community/Qwen3-30B-A3B-8bit \
   --meeting-type interview \
   --structured
 

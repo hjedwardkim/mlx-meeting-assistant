@@ -1,4 +1,4 @@
-"""Pipeline module for orchestrating transcription and summarization with diarization support."""
+"""Pipeline module for orchestrating transcription and summarization with FFmpeg preprocessing support."""
 
 from typing import Optional, Tuple, List, Dict
 from pathlib import Path
@@ -104,9 +104,9 @@ def run_diarization_pipeline(
         RuntimeError: If any step fails
     """
     try:
-        # Step 1: Transcribe with diarization
+        # Step 1: Transcribe with diarization (includes automatic preprocessing)
         from .transcription import transcribe_with_diarization
-        from .alignment import format_aligned_transcript, AlignedSegment
+        from .alignment import format_aligned_transcript
 
         raw_transcription, aligned_segments_dict, diarization_segments = (
             transcribe_with_diarization(
@@ -163,3 +163,97 @@ def run_diarization_pipeline(
 
     except Exception as e:
         raise RuntimeError(f"Diarization pipeline failed: {str(e)}")
+
+
+def run_batch_pipeline(
+    file_paths: List[str],
+    transcription_model: str = "mlx-community/whisper-large-v3-mlx",
+    summarization_model: str = "mlx-community/Qwen3-30B-A3B-8bit",
+    output_dir: str = "./batch_output",
+    structured: bool = True,
+    meeting_type: str = "general",
+    with_diarization: bool = False,
+    diarization_model: str = "pyannote/speaker-diarization-3.1",
+    use_auth_token: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Run pipeline on multiple files.
+
+    Args:
+        file_paths: List of audio/video file paths
+        transcription_model: MLX Whisper model to use
+        summarization_model: MLX LM model to use
+        output_dir: Directory for output files
+        structured: Whether to use structured meeting notes format
+        meeting_type: Type of meeting for specialized formatting
+        with_diarization: Whether to include speaker diarization
+        diarization_model: Pyannote diarization model to use
+        use_auth_token: HuggingFace access token for diarization
+
+    Returns:
+        List of processing results with file paths and status
+
+    Raises:
+        RuntimeError: If batch processing fails
+    """
+    results = []
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    for file_path in file_paths:
+        file_name = Path(file_path).stem
+        result = {
+            "input_file": file_path,
+            "status": "pending",
+            "transcription_file": None,
+            "summary_file": None,
+            "rttm_file": None,
+            "error": None,
+        }
+
+        try:
+            # Set up output files
+            extension = ".md" if structured else ".txt"
+            summary_file = output_path / f"{file_name}_summary{extension}"
+            transcription_file = output_path / f"{file_name}_transcript.txt"
+
+            if with_diarization:
+                if not use_auth_token:
+                    raise ValueError("HuggingFace token required for diarization")
+
+                rttm_file = output_path / f"{file_name}.rttm"
+                transcript, summary, _ = run_diarization_pipeline(
+                    file_path=file_path,
+                    transcription_model=transcription_model,
+                    diarization_model=diarization_model,
+                    summarization_model=summarization_model,
+                    use_auth_token=use_auth_token,
+                    output_file=str(summary_file),
+                    save_transcription=str(transcription_file),
+                    save_rttm=str(rttm_file),
+                    structured=structured,
+                    meeting_type=meeting_type,
+                )
+                result["rttm_file"] = str(rttm_file)
+            else:
+                transcript, summary = run_pipeline(
+                    file_path=file_path,
+                    transcription_model=transcription_model,
+                    summarization_model=summarization_model,
+                    output_file=str(summary_file),
+                    save_transcription=str(transcription_file),
+                    structured=structured,
+                    meeting_type=meeting_type,
+                )
+
+            result["status"] = "completed"
+            result["transcription_file"] = str(transcription_file)
+            result["summary_file"] = str(summary_file)
+
+        except Exception as e:
+            result["status"] = "failed"
+            result["error"] = str(e)
+
+        results.append(result)
+
+    return results

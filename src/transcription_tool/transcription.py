@@ -1,4 +1,4 @@
-"""Transcription module using MLX Whisper with diarization support."""
+"""Transcription module using MLX Whisper with FFmpeg preprocessing for diarization."""
 
 import os
 from pathlib import Path
@@ -112,7 +112,7 @@ def transcribe_with_diarization(
     save_rttm: Optional[str] = None,
 ) -> Tuple[str, List[Dict], List[Dict]]:
     """
-    Transcribe audio with speaker diarization.
+    Transcribe audio with speaker diarization and automatic FFmpeg preprocessing.
 
     Args:
         file_path: Path to the audio/video file
@@ -138,22 +138,30 @@ def transcribe_with_diarization(
         format_diarization_segments,
         save_diarization_rttm,
     )
-    from .alignment import align_transcription_with_diarization, AlignedSegment
+    from .alignment import align_transcription_with_diarization
 
     try:
-        # Perform detailed transcription
+        # Step 1: Perform detailed transcription using MLX Whisper
+        # MLX Whisper handles format conversion automatically
         transcription_result = transcribe_audio_detailed(file_path, transcription_model)
 
-        # Load and run diarization
+        # Step 2: Load and run diarization with automatic FFmpeg preprocessing
         diar_pipeline = load_diarization_pipeline(diarization_model, use_auth_token)
+
+        # Perform diarization with automatic preprocessing
         diarization = perform_diarization(
-            file_path, diar_pipeline, num_speakers, min_speakers, max_speakers
+            file_path=file_path,
+            pipeline=diar_pipeline,
+            num_speakers=num_speakers,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
+            show_progress=True,
         )
 
-        # Format segments
+        # Step 3: Format diarization segments
         diarization_segments = format_diarization_segments(diarization)
 
-        # Align transcription with diarization
+        # Step 4: Align transcription with diarization
         aligned_segments_objects = align_transcription_with_diarization(
             transcription_result["segments"], diarization_segments
         )
@@ -172,7 +180,7 @@ def transcribe_with_diarization(
                 }
             )
 
-        # Save RTTM if requested
+        # Step 5: Save RTTM if requested
         if save_rttm:
             save_diarization_rttm(diarization, save_rttm)
 
@@ -180,3 +188,41 @@ def transcribe_with_diarization(
 
     except Exception as e:
         raise RuntimeError(f"Transcription with diarization failed: {str(e)}")
+
+
+def estimate_processing_time(file_path: str) -> dict:
+    """
+    Estimate processing time for transcription and diarization.
+
+    Args:
+        file_path: Path to audio file
+
+    Returns:
+        Dictionary with time estimates
+    """
+    from .audio_preprocessing import get_audio_info
+
+    info = get_audio_info(file_path)
+
+    estimates = {
+        "file_duration_minutes": 0,
+        "transcription_time_minutes": 0,
+        "diarization_time_minutes": 0,
+        "total_time_minutes": 0,
+    }
+
+    if info["duration_seconds"]:
+        duration_minutes = info["duration_seconds"] / 60
+        estimates["file_duration_minutes"] = duration_minutes
+
+        # Rough estimates based on typical performance
+        # Transcription: ~0.1x real time on Apple Silicon
+        # Diarization: ~0.5x real time
+        estimates["transcription_time_minutes"] = duration_minutes * 0.1
+        estimates["diarization_time_minutes"] = duration_minutes * 0.5
+        estimates["total_time_minutes"] = (
+            estimates["transcription_time_minutes"]
+            + estimates["diarization_time_minutes"]
+        )
+
+    return estimates

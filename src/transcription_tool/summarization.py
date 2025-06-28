@@ -142,6 +142,7 @@ def _detect_speaker_content(content: str) -> bool:
         r"\*\*Speaker_\d+:\*\*",  # **Speaker_0:**
         r"Speaker_\d+:",  # Speaker_0:
         r"\[Speaker_\d+\]",  # [Speaker_0]
+        r"\*\*Speaker_SPEAKER_\d+:\*\*",  # **Speaker_SPEAKER_00:**
     ]
 
     for pattern in speaker_patterns:
@@ -149,6 +150,33 @@ def _detect_speaker_content(content: str) -> bool:
             return True
 
     return False
+
+
+def _is_file_path(text_input: str) -> bool:
+    """
+    Determine if text_input is a file path or direct text content.
+
+    Args:
+        text_input: Input to check
+
+    Returns:
+        True if it's likely a file path, False if it's direct content
+    """
+    # If it's stdin indicator, return False
+    if text_input == "-":
+        return False
+
+    # If it contains newlines or is very long, it's probably direct content
+    if "\n" in text_input or len(text_input) > 500:
+        return False
+
+    # If it looks like a path and the file exists, it's a file path
+    try:
+        path = Path(text_input)
+        return path.exists() and path.is_file()
+    except (OSError, ValueError):
+        # Invalid path characters or other path-related errors
+        return False
 
 
 def summarize_text(
@@ -163,7 +191,7 @@ def summarize_text(
     Summarize text using MLX LM with speaker awareness.
 
     Args:
-        text_input: Text to summarize (file path or stdin if '-')
+        text_input: Text to summarize (file path, stdin if '-', or direct text content)
         model: MLX LM model to use
         output_file: Optional output file path for summary
         max_tokens: Maximum tokens for summary
@@ -181,13 +209,16 @@ def summarize_text(
     # Handle input text
     try:
         if text_input == "-":
+            # Read from stdin
             content = sys.stdin.read()
-        elif Path(text_input).exists():
+        elif _is_file_path(text_input):
+            # Read from file
             with open(text_input, "r", encoding="utf-8") as f:
                 content = f.read()
         else:
-            # Treat as direct text input
+            # Treat as direct text content
             content = text_input
+
     except FileNotFoundError:
         raise FileNotFoundError(f"Input file not found: {text_input}")
     except Exception as e:
@@ -247,7 +278,6 @@ def summarize_text(
                 tokenizer,
                 prompt=prompt,
                 max_tokens=max_tokens,
-                temp=0.1,  # Lower temperature for more consistent output
             )
         except Exception as e:
             raise RuntimeError(f"Failed to generate summary: {str(e)}")
