@@ -1,4 +1,4 @@
-"""Summarization module using MLX LM."""
+"""Summarization module using MLX LM with speaker awareness."""
 
 import sys
 import re
@@ -9,9 +9,10 @@ from datetime import datetime
 from mlx_lm.utils import load
 from mlx_lm.generate import generate
 
-from ..prompts import (
+from prompts import (
     create_structured_meeting_prompt,
     create_simple_meeting_prompt,
+    create_speaker_aware_meeting_prompt,
     get_specialized_prompt,
     MeetingType,
 )
@@ -126,16 +127,40 @@ def _validate_input_content(content: str) -> str:
     return content
 
 
+def _detect_speaker_content(content: str) -> bool:
+    """
+    Detect if content contains speaker attribution markers.
+
+    Args:
+        content: Input content to analyze
+
+    Returns:
+        True if speaker markers are detected, False otherwise
+    """
+    # Look for speaker markers like **Speaker_0:** or **Speaker_1:**
+    speaker_patterns = [
+        r"\*\*Speaker_\d+:\*\*",  # **Speaker_0:**
+        r"Speaker_\d+:",  # Speaker_0:
+        r"\[Speaker_\d+\]",  # [Speaker_0]
+    ]
+
+    for pattern in speaker_patterns:
+        if re.search(pattern, content):
+            return True
+
+    return False
+
+
 def summarize_text(
     text_input: str,
-    model: str = "mlx-community/Qwen3-30B-A3B-MLX-8bit",
+    model: str = "mlx-community/Qwen3-30B-A3B-8bit",
     output_file: Optional[str] = None,
     max_tokens: int = 32000,
     structured: bool = True,
     meeting_type: str = "general",
 ) -> str:
     """
-    Summarize text using MLX LM.
+    Summarize text using MLX LM with speaker awareness.
 
     Args:
         text_input: Text to summarize (file path or stdin if '-')
@@ -178,23 +203,31 @@ def summarize_text(
         except Exception as e:
             raise RuntimeError(f"Failed to load model '{model}': {str(e)}")
 
-        # Create appropriate prompt based on structured flag
+        # Create appropriate prompt based on structured flag and speaker content
         if structured:
-            try:
-                meeting_type_enum = MeetingType(meeting_type.lower())
-                if meeting_type_enum in [
-                    MeetingType.STANDUP,
-                    MeetingType.CLIENT_CALL,
-                    MeetingType.PLANNING,
-                    MeetingType.INTERVIEW,
-                    MeetingType.RETROSPECTIVE,
-                ]:
-                    prompt = get_specialized_prompt(meeting_type_enum, content)
-                else:
+            # Check if content has speaker attribution
+            has_speakers = _detect_speaker_content(content)
+
+            if has_speakers:
+                # Use speaker-aware prompt for content with speaker attribution
+                prompt = create_speaker_aware_meeting_prompt(content)
+            else:
+                # Use regular structured prompt or specialized prompt
+                try:
+                    meeting_type_enum = MeetingType(meeting_type.lower())
+                    if meeting_type_enum in [
+                        MeetingType.STANDUP,
+                        MeetingType.CLIENT_CALL,
+                        MeetingType.PLANNING,
+                        MeetingType.INTERVIEW,
+                        MeetingType.RETROSPECTIVE,
+                    ]:
+                        prompt = get_specialized_prompt(meeting_type_enum, content)
+                    else:
+                        prompt = create_structured_meeting_prompt(content)
+                except ValueError:
+                    # Fall back to general structured prompt if meeting_type is invalid
                     prompt = create_structured_meeting_prompt(content)
-            except ValueError:
-                # Fall back to general structured prompt if meeting_type is invalid
-                prompt = create_structured_meeting_prompt(content)
         else:
             # Use simple prompt for backward compatibility
             prompt = create_simple_meeting_prompt(content)
