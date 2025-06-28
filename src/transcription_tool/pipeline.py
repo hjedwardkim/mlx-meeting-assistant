@@ -12,7 +12,9 @@ def run_pipeline(
     summarization_model: str = "mlx-community/Qwen3-30B-A3B-8bit",
     output_file: Optional[str] = None,
     save_transcription: Optional[str] = None,
-    max_tokens: int = 500,
+    max_tokens: int = 32000,
+    structured: bool = True,
+    meeting_type: str = "general",
 ) -> Tuple[str, str]:
     """
     Run complete pipeline: transcription followed by summarization.
@@ -24,6 +26,8 @@ def run_pipeline(
         output_file: Optional output file path for final summary
         save_transcription: Optional file path to save intermediate transcription
         max_tokens: Maximum tokens for summary
+        structured: Whether to use structured meeting notes format
+        meeting_type: Type of meeting for specialized formatting
 
     Returns:
         Tuple of (transcription, summary)
@@ -40,12 +44,14 @@ def run_pipeline(
             output_file=save_transcription,
         )
 
-        # Step 2: Summarize transcription
+        # Step 2: Summarize transcription with structured output
         summary = summarize_text(
             text_input=transcription,
             model=summarization_model,
             output_file=output_file,
             max_tokens=max_tokens,
+            structured=structured,
+            meeting_type=meeting_type,
         )
 
         return transcription, summary

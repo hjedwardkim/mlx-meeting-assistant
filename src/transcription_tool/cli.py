@@ -21,7 +21,6 @@ def main():
 @click.option(
     "--model",
     "-m",
-    # default="mlx-community/parakeet-tdt-0.6b-v2",
     default="mlx-community/whisper-large-v3-mlx",
     help="MLX Whisper model to use",
 )
@@ -39,7 +38,9 @@ def transcribe(file_path: str, model: str, output: str):
             output = transcriptions_dir / f"{input_path.stem}.txt"
 
         transcription = transcribe_audio(
-            file_path=file_path, model=model, output_file=output
+            file_path=file_path,
+            model=model,
+            output_file=output,
         )
 
         # Always output to stdout and save to file
@@ -56,15 +57,35 @@ def transcribe(file_path: str, model: str, output: str):
 @click.option(
     "--model",
     "-m",
-    default="mlx-community/Qwen3-30B-A3B-8bit",
+    default="mlx-community/Qwen3-30B-A3B-MLX-8bit",
     help="MLX LM model to use",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path for summary")
 @click.option(
-    "--max-tokens", default=10000, type=int, help="Maximum tokens for summary"
+    "--max-tokens", default=32000, type=int, help="Maximum tokens for summary"
 )
-def summarize(text_input: str, model: str, output: str, max_tokens: int):
-    """Summarize text from file or stdin."""
+@click.option(
+    "--structured/--simple",
+    default=True,
+    help="Use structured meeting notes format (default) or simple summary",
+)
+@click.option(
+    "--meeting-type",
+    type=click.Choice(
+        ["general", "standup", "planning", "client_call", "interview", "retrospective"]
+    ),
+    default="general",
+    help="Type of meeting for specialized formatting",
+)
+def summarize(
+    text_input: str,
+    model: str,
+    output: str,
+    max_tokens: int,
+    structured: bool,
+    meeting_type: str,
+):
+    """Summarize text from file or stdin with structured meeting notes."""
     try:
         # Generate automatic output path if not specified
         if not output:
@@ -73,7 +94,9 @@ def summarize(text_input: str, model: str, output: str, max_tokens: int):
                 input_path = Path(text_input)
                 summaries_dir = Path("./summaries")
                 summaries_dir.mkdir(exist_ok=True)
-                output = summaries_dir / f"{input_path.stem}.txt"
+                # Use .md extension for structured output
+                extension = ".md" if structured else ".txt"
+                output = summaries_dir / f"{input_path.stem}{extension}"
             else:
                 # For stdin or direct text, use timestamp
                 from datetime import datetime
@@ -81,13 +104,16 @@ def summarize(text_input: str, model: str, output: str, max_tokens: int):
                 summaries_dir = Path("./summaries")
                 summaries_dir.mkdir(exist_ok=True)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output = summaries_dir / f"summary_{timestamp}.txt"
+                extension = ".md" if structured else ".txt"
+                output = summaries_dir / f"summary_{timestamp}{extension}"
 
         summary = summarize_text(
             text_input=text_input,
             model=model,
             output_file=output,
             max_tokens=max_tokens,
+            structured=structured,
+            meeting_type=meeting_type,
         )
 
         # Always output to stdout and save to file
@@ -119,7 +145,22 @@ def summarize(text_input: str, model: str, output: str, max_tokens: int):
     type=click.Path(),
     help="Save intermediate transcription to file",
 )
-@click.option("--max-tokens", default=500, type=int, help="Maximum tokens for summary")
+@click.option(
+    "--max-tokens", default=32000, type=int, help="Maximum tokens for summary"
+)
+@click.option(
+    "--structured/--simple",
+    default=True,
+    help="Use structured meeting notes format (default) or simple summary",
+)
+@click.option(
+    "--meeting-type",
+    type=click.Choice(
+        ["general", "standup", "planning", "client_call", "interview", "retrospective"]
+    ),
+    default="general",
+    help="Type of meeting for specialized formatting",
+)
 def pipeline(
     file_path: str,
     transcription_model: str,
@@ -127,9 +168,26 @@ def pipeline(
     output: str,
     save_transcription: str,
     max_tokens: int,
+    structured: bool,
+    meeting_type: str,
 ):
     """Run complete pipeline: transcription + summarization."""
     try:
+        # Generate automatic output paths if not specified
+        if not output:
+            input_path = Path(file_path)
+            summaries_dir = Path("./summaries")
+            summaries_dir.mkdir(exist_ok=True)
+            # Use .md extension for structured output
+            extension = ".md" if structured else ".txt"
+            output = summaries_dir / f"{input_path.stem}_summary{extension}"
+
+        if not save_transcription:
+            input_path = Path(file_path)
+            transcriptions_dir = Path("./transcriptions")
+            transcriptions_dir.mkdir(exist_ok=True)
+            save_transcription = transcriptions_dir / f"{input_path.stem}.txt"
+
         transcription, summary = run_pipeline(
             file_path=file_path,
             transcription_model=transcription_model,
@@ -137,16 +195,18 @@ def pipeline(
             output_file=output,
             save_transcription=save_transcription,
             max_tokens=max_tokens,
+            structured=structured,
+            meeting_type=meeting_type,
         )
 
-        if save_transcription:
-            click.echo(f"Transcription saved to: {save_transcription}")
+        click.echo(f"Transcription saved to: {save_transcription}")
+        click.echo(f"Summary saved to: {output}")
 
-        if not output:
-            click.echo("--- SUMMARY ---")
-            click.echo(summary)
-        else:
-            click.echo(f"Summary saved to: {output}")
+        # Also display the summary
+        click.echo("\n" + "=" * 50)
+        click.echo("MEETING NOTES" if structured else "SUMMARY")
+        click.echo("=" * 50)
+        click.echo(summary)
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
