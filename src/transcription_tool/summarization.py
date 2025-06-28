@@ -1,20 +1,20 @@
 """Summarization module using MLX LM with speaker awareness."""
 
-import sys
-import re
-from pathlib import Path
-from typing import Optional
 from datetime import datetime
+from pathlib import Path
+import re
+import sys
+from typing import Optional
 
-from mlx_lm.utils import load
 from mlx_lm.generate import generate
+from mlx_lm.utils import load
 
 from prompts import (
-    create_structured_meeting_prompt,
+    MeetingType,
     create_simple_meeting_prompt,
     create_speaker_aware_meeting_prompt,
+    create_structured_meeting_prompt,
     get_specialized_prompt,
-    MeetingType,
 )
 
 

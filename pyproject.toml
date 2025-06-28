@@ -17,6 +17,9 @@ dependencies = [
   "torch>=2.7.1",
 ]
 
+[project.optional-dependencies]
+dev = ["ruff>=0.12.1"]
+
 [project.scripts]
 transcription-tool = "transcription_tool.cli:main"
 meeting-assistant = "transcription_tool.cli:main"
@@ -30,3 +33,115 @@ packages = ["src/transcription_tool", "src/prompts"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/README.md", "/pyproject.toml"]
+
+# Ruff configuration
+[tool.ruff]
+# Set the maximum line length to match Black's default
+line-length = 88
+# Assume Python 3.12+
+target-version = "py312"
+# Include source directories
+src = ["src"]
+# Exclude common directories
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".ipynb_checkpoints",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pyenv",
+  ".pytest_cache",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  ".vscode",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "site-packages",
+  "venv",
+  "recordings",
+  "summaries",
+  "transcriptions",
+]
+
+[tool.ruff.lint]
+# Enable these rule groups by default
+select = [
+  "I", # isort (import sorting)
+]
+
+# Ignore specific rules that may conflict with our codebase or preferences
+ignore = [
+  "E501",   # line too long (handled by formatter)
+  "T20",    # Allow print statements for CLI output
+  "B008",   # Allow function calls in argument defaults
+  "SIM105", # Allow try-except-pass patterns
+  "UP017",  # Allow timezone.utc instead of datetime.UTC for compatibility
+]
+
+# Allow fixing of these rule categories
+fixable = [
+  "F401",   # Remove unused imports
+  "I",      # Sort imports
+  "UP",     # Modern Python syntax
+  "B",      # Bug fixes
+  "SIM",    # Simplifications
+  "RUF100", # Remove unused noqa comments
+]
+
+# Rules that should never be auto-fixed
+unfixable = [
+  "F841", # Don't remove unused variables (might be intentional)
+  "B905", # Don't change zip() to zip(strict=True) automatically
+]
+
+# Per-file-ignores allow you to disable specific rules for specific files
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]                  # Allow unused imports in __init__.py files
+"src/transcription_tool/cli.py" = ["T20"] # Allow print statements in CLI
+"tests/**/*.py" = ["B018", "SIM117"]      # Test-specific ignores
+
+[tool.ruff.lint.isort]
+# Import sorting configuration
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["transcription_tool", "prompts"]
+known-third-party = [
+  "click",
+  "dotenv",
+  "ffmpeg",
+  "mlx_whisper",
+  "mlx_lm",
+  "pyannote",
+  "torch",
+  "numpy",
+]
+
+[tool.ruff.format]
+# Use double quotes for strings (Black-compatible)
+quote-style = "double"
+# Use spaces for indentation
+indent-style = "space"
+# Respect magic trailing commas 
+skip-magic-trailing-comma = false
+# Auto-detect line endings
+line-ending = "auto"
+# Format docstrings
+docstring-code-format = true
+docstring-code-line-length = 72
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.1",
+]

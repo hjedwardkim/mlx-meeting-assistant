@@ -2,7 +2,6 @@
 
 from .config import MeetingType
 
-
 # Standup meeting prompt
 STANDUP_MEETING_PROMPT = """You are an expert at summarizing standup meetings. Analyze the following standup transcript and extract key information.
 

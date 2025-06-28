@@ -1,7 +1,7 @@
 """Alignment module for matching transcription segments with diarization."""
 
-from typing import List, Dict
 from dataclasses import dataclass
+from typing import Dict, List
 
 
 @dataclass

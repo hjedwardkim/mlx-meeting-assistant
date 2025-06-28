@@ -8,6 +8,9 @@ wheels/
 .venv
 .DS_Store
 .env
+.ruff_cache/
+.claude/
+.git/
 
 # recordings, summaries, transcriptions
 recordings/

@@ -1,10 +1,10 @@
 """Pipeline module for orchestrating transcription and summarization with FFmpeg preprocessing support."""
 
-from typing import Optional, Tuple, List, Dict
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-from .transcription import transcribe_audio
 from .summarization import summarize_text
+from .transcription import transcribe_audio
 
 
 def run_pipeline(
@@ -105,8 +105,8 @@ def run_diarization_pipeline(
     """
     try:
         # Step 1: Transcribe with diarization (includes automatic preprocessing)
-        from .transcription import transcribe_with_diarization
         from .alignment import format_aligned_transcript
+        from .transcription import transcribe_with_diarization
 
         raw_transcription, aligned_segments_dict, diarization_segments = (
             transcribe_with_diarization(

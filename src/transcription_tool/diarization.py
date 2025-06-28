@@ -2,20 +2,20 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 import warnings
 
-import torch
 from pyannote.audio import Pipeline
-from pyannote.core import Annotation
 from pyannote.audio.pipelines.utils.hook import ProgressHook
+from pyannote.core import Annotation
+import torch
 
 from .audio_preprocessing import (
-    preprocess_audio_for_diarization,
-    cleanup_temporary_file,
-    validate_audio_for_diarization,
-    probe_ffmpeg_availability,
     AudioPreprocessingError,
+    cleanup_temporary_file,
+    preprocess_audio_for_diarization,
+    probe_ffmpeg_availability,
+    validate_audio_for_diarization,
 )
 
 # Suppress warnings for cleaner output

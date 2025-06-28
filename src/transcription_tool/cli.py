@@ -1,17 +1,16 @@
 """CLI interface for the transcription tool with FFmpeg audio preprocessing support."""
 
-import sys
 from pathlib import Path
+import sys
 
 import click
-
 from dotenv import load_dotenv
 
-from .transcription import transcribe_audio
-from .summarization import summarize_text
-from .pipeline import run_pipeline, run_diarization_pipeline
-from .diarization import diagnose_audio_compatibility
 from .audio_preprocessing import probe_ffmpeg_availability
+from .diarization import diagnose_audio_compatibility
+from .pipeline import run_diarization_pipeline, run_pipeline
+from .summarization import summarize_text
+from .transcription import transcribe_audio
 
 load_dotenv()
 

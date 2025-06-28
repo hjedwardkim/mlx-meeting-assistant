@@ -2,14 +2,16 @@
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict
+from typing import Dict, List, Optional, Tuple
 
 import mlx_whisper
+
+from .config import config
 
 
 def transcribe_audio(
     file_path: str,
-    model: str = "mlx-community/whisper-large-v3-mlx",
+    model: str = None,
     output_file: Optional[str] = None,
 ) -> str:
     """
@@ -17,7 +19,7 @@ def transcribe_audio(
 
     Args:
         file_path: Path to the audio/video file
-        model: MLX Whisper model to use
+        model: MLX Whisper model to use (defaults to config value)
         output_file: Optional output file path for transcription
 
     Returns:
@@ -30,14 +32,13 @@ def transcribe_audio(
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Input file not found: {file_path}")
 
+    # Use default model from config if not specified
+    if model is None:
+        model = config.models.transcription_model
+
     try:
-        transcribe_options = {
-            "temperature": 0.0,
-            "no_speech_threshold": 0.6,
-            "logprob_threshold": -1.0,
-            "compression_ratio_threshold": 2.4,  # lower if repetition happens
-            "condition_on_previous_text": False,  # true can cause repetition
-        }
+        # Get transcription options from environment configuration
+        transcribe_options = config.transcription.to_dict()
 
         result = mlx_whisper.transcribe(
             file_path,
@@ -60,14 +61,14 @@ def transcribe_audio(
 
 def transcribe_audio_detailed(
     file_path: str,
-    model: str = "mlx-community/whisper-large-v3-mlx",
+    model: str = None,
 ) -> Dict:
     """
     Transcribe audio/video file with detailed segment information.
 
     Args:
         file_path: Path to the audio/video file
-        model: MLX Whisper model to use
+        model: MLX Whisper model to use (defaults to config value)
 
     Returns:
         Dictionary with 'text' and 'segments' keys
@@ -79,14 +80,13 @@ def transcribe_audio_detailed(
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Input file not found: {file_path}")
 
+    # Use default model from config if not specified
+    if model is None:
+        model = config.models.transcription_model
+
     try:
-        transcribe_options = {
-            "temperature": 0.0,
-            "no_speech_threshold": 0.6,
-            "logprob_threshold": -1.0,
-            "compression_ratio_threshold": 2.4,
-            "condition_on_previous_text": False,
-        }
+        # Get transcription options from environment configuration
+        transcribe_options = config.transcription.to_dict()
 
         result = mlx_whisper.transcribe(
             file_path,
@@ -102,8 +102,8 @@ def transcribe_audio_detailed(
 
 def transcribe_with_diarization(
     file_path: str,
-    transcription_model: str = "mlx-community/whisper-large-v3-mlx",
-    diarization_model: str = "pyannote/speaker-diarization-3.1",
+    transcription_model: str = None,
+    diarization_model: str = None,
     use_auth_token: Optional[str] = None,
     num_speakers: Optional[int] = None,
     min_speakers: Optional[int] = None,
@@ -116,12 +116,12 @@ def transcribe_with_diarization(
 
     Args:
         file_path: Path to the audio/video file
-        transcription_model: MLX Whisper model to use
-        diarization_model: Pyannote diarization model to use
-        use_auth_token: HuggingFace access token
+        transcription_model: MLX Whisper model to use (defaults to config value)
+        diarization_model: Pyannote diarization model to use (defaults to config value)
+        use_auth_token: HuggingFace access token (defaults to config value)
         num_speakers: Known number of speakers (optional)
-        min_speakers: Minimum number of speakers (optional)
-        max_speakers: Maximum number of speakers (optional)
+        min_speakers: Minimum number of speakers (defaults to config value)
+        max_speakers: Maximum number of speakers (defaults to config value)
         output_file: Optional output file path for transcription
         save_rttm: Optional file path to save diarization RTTM
 
@@ -132,13 +132,25 @@ def transcribe_with_diarization(
         FileNotFoundError: If input file doesn't exist
         RuntimeError: If transcription or diarization fails
     """
+    from .alignment import align_transcription_with_diarization
     from .diarization import (
+        format_diarization_segments,
         load_diarization_pipeline,
         perform_diarization,
-        format_diarization_segments,
         save_diarization_rttm,
     )
-    from .alignment import align_transcription_with_diarization
+
+    # Use defaults from config if not specified
+    if transcription_model is None:
+        transcription_model = config.models.transcription_model
+    if diarization_model is None:
+        diarization_model = config.models.diarization_model
+    if use_auth_token is None:
+        use_auth_token = config.huggingface_token
+    if min_speakers is None:
+        min_speakers = config.diarization.min_speakers
+    if max_speakers is None:
+        max_speakers = config.diarization.max_speakers
 
     try:
         # Step 1: Perform detailed transcription using MLX Whisper
@@ -226,3 +238,20 @@ def estimate_processing_time(file_path: str) -> dict:
         )
 
     return estimates
+
+
+def get_current_transcription_config() -> Dict:
+    """
+    Get the current transcription configuration for debugging/logging.
+
+    Returns:
+        Dictionary with current configuration values
+    """
+    return {
+        "transcription_model": config.models.transcription_model,
+        "transcription_options": config.transcription.to_dict(),
+        "diarization_model": config.models.diarization_model,
+        "min_speakers": config.diarization.min_speakers,
+        "max_speakers": config.diarization.max_speakers,
+        "huggingface_token_set": bool(config.huggingface_token),
+    }
