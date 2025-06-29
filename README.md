@@ -1,233 +1,201 @@
-# Transcription Tool
+# MLX Meeting Assistant
 
-A CLI tool for audio/video transcription and summarization using MLX backend with speaker diarization support.
+An AI-powered CLI tool to transcribe, diarize, and summarize audio/video files using MLX and Pyannote.
+
+**Generate structured meeting notes, action items, and summaries tailored to specific meeting types.**
+
+> Keep your confidential meetings secure with on-device processing using Apple's MLX framework.
+
+⭐ **Please star this repo if you find it useful!** ⭐
+
+[![GitHub stars](https://img.shields.io/github/stars/hjedwardkim/mlx-meeting-assistant?style=social)](https://github.com/hjedwardkim/mlx-meeting-assistant/stargazers)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+## Features
+
+- **High-Quality Transcription**: Powered by MLX-ported Whisper models for fast, local transcription on Apple Silicon.
+- **Speaker Diarization**: Identifies who spoke when using `pyannote.audio`, attributing transcript lines to different speakers.
+- **Intelligent Summarization**: Uses MLX-powered LLMs to generate summaries.
+- **Structured Notes**: Creates detailed, structured meeting notes in Markdown format, including summaries, decisions, and action items.
+- **Specialized Prompts**: Generates notes tailored to the context of different meeting types (`standup`, `interview`, `client_call`, `planning`, `retrospective`).
+- **Automatic Format Conversion**: Uses FFmpeg to automatically convert common audio/video formats to the required WAV format for processing.
+- **Dependency Checking**: Includes built-in commands to check for necessary system dependencies like FFmpeg.
 
 ## Installation
 
-Install the tool using uv:
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/your-repo/mlx-meeting-assistant.git
+   cd mlx-meeting-assistant
+   ```
+
+2. **Install dependencies using `uv`:**
+
+   ```bash
+   uv sync
+   ```
+
+This will install all required Python packages and make the `meeting-assistant` command available in your shell.
+
+## System Dependencies
+
+This tool relies on **FFmpeg** for audio preprocessing. You can check if it's installed correctly using the built-in command:
 
 ```bash
-uv sync
+meeting-assistant check-deps
 ```
 
-The CLI entry point `transcription-tool` or `meeting-assistant` will be available after installation.
+If FFmpeg is not available, please install it:
+
+- **macOS (Homebrew)**: `brew install ffmpeg`
 
 ## Commands
 
-The `mlx-meeting-assistant` tool has 4 commands:
+The primary entry point for the tool is `meeting-assistant`.
 
-- `transcribe`: Transcribe audio file to text.
-- `summarize`: Summarize text transcription to summaries.
-- `pipeline`: Transcribe and summarize without diarization (distinguishing speakers).
-- `diarize`: Transcribe, diarize, and summarize with speaker distinctions.
+### `diarize`
 
-### Transcribe
+The main command to run the full pipeline: transcription, speaker diarization, and summarization.
 
-Transcribe audio/video files to text:
+```bash
+# Basic usage: Transcribe, identify speakers, and create structured notes
+meeting-assistant diarize meeting.mp4
+
+# Specify the number of speakers if known for better accuracy
+meeting-assistant diarize meeting.mp4 --num-speakers 3
+
+# Use a specialized prompt for a specific meeting type (e.g., a standup)
+meeting-assistant diarize standup.m4a --meeting-type standup
+
+# Save all outputs to custom paths
+meeting-assistant diarize call.mp4 \
+  --output notes.md \
+  --save-transcription transcript_with_speakers.txt \
+  --save-rttm diarization.rttm
+```
+
+**Diarization Setup:**
+The `diarize` command requires a Hugging Face token to download the speaker identification models.
+
+1. **Get Hugging Face Token**:
+   - Create an access token at [hf.co/settings/tokens](https://hf.co/settings/tokens).
+2. **Accept Model User Agreements**:
+   - Accept the terms for [pyannote/speaker-diarization-3.1](https://hf.co/pyannote/speaker-diarization-3.1).
+   - Accept the terms for [pyannote/segmentation-3.0](https://hf.co/pyannote/segmentation-3.0).
+3. **Set Environment Variable**:
+
+   - Create a `.env` file in the project root and add your token:
+
+     ```
+     HUGGINGFACE_TOKEN=your_token_here
+     ```
+
+   - Alternatively, you can pass the token directly with the `--hf-token` flag.
+
+### `summarize`
+
+Summarize a text file. This is useful for summarizing an existing transcript. The command automatically detects if the transcript has speaker labels and uses a more detailed prompt accordingly.
+
+```bash
+# Summarize a plain transcript into structured notes
+meeting-assistant summarize transcript.txt
+
+# Summarize a speaker-attributed transcript with specialized notes for an interview
+meeting-assistant summarize speaker_transcript.txt --meeting-type interview
+
+# Summarize from stdin
+cat transcript.txt | meeting-assistant summarize -
+```
+
+### `pipeline`
+
+Runs transcription and summarization without speaker diarization.
+
+```bash
+# Basic usage
+meeting-assistant pipeline meeting.mp4
+
+# Use a custom summarization model and save the transcript
+meeting-assistant pipeline meeting.mp4 \
+  --summarization-model mlx-community/Llama-3.1-8B-Instruct-4bit \
+  --save-transcription transcript.txt
+```
+
+### `transcribe`
+
+Performs transcription only.
 
 ```bash
 # Basic transcription
-transcription-tool transcribe video.mp4
-
-# Specify custom model
-transcription-tool transcribe video.mp4 --model mlx-community/whisper-large-v3-turbo
-
-# Save to file
-transcription-tool transcribe video.mp4 --output transcript.txt
+meeting-assistant transcribe video.mp4 --output transcript.txt
 ```
 
-### Summarize
+### `diagnose`
 
-Summarize text from files or stdin:
+Checks if an audio/video file is compatible with the diarization pipeline and provides recommendations.
 
 ```bash
-# Summarize from file
-transcription-tool summarize transcript.txt
-
-# Summarize from stdin
-cat transcript.txt | transcription-tool summarize -
-
-# Custom model and output
-transcription-tool summarize transcript.txt --model mlx-community/Llama-3.2-3B-Instruct-4bit --output summary.txt
-
-# Control summary length
-transcription-tool summarize transcript.txt --max-tokens 300
+meeting-assistant diagnose "long meeting.mp4"
 ```
 
-### Pipeline
+### `check-deps`
 
-Run complete transcription + summarization pipeline:
+Verifies that all necessary system dependencies (like FFmpeg) and Python packages are installed correctly.
 
 ```bash
-# End-to-end processing
-transcription-tool pipeline video.mp4
-
-# Custom models
-transcription-tool pipeline video.mp4 \
-  --transcription-model mlx-community/whisper-large-v3-turbo \
-  --summarization-model mlx-community/Llama-3.2-3B-Instruct-4bit
-
-# Save outputs
-transcription-tool pipeline video.mp4 \
-  --save-transcription transcript.txt \
-  --output summary.txt
+meeting-assistant check-deps
 ```
 
-## Speaker Diarization
+## Advanced Summarization
 
-The tool supports speaker diarization (identifying "who spoke when") using pyannote.audio:
+You can control the output of the summarization by using the following flags with the `diarize`, `pipeline`, and `summarize` commands.
 
-### Setup for Diarization
+- `--structured` / `--simple`: Choose between a detailed, structured Markdown output (default) or a simple paragraph summary.
+- `--meeting-type`: Tailor the summary to a specific context. This changes the structure and focus of the generated notes.
+  - `general` (default)
+  - `standup`
+  - `planning`
+  - `client_call`
+  - `interview`
+  - `retrospective`
 
-1. **Get HuggingFace Token**:
-
-   - Visit <https://hf.co/settings/tokens>
-   - Create an access token
-
-2. **Accept Model Conditions**:
-
-   - Visit <https://hf.co/pyannote/speaker-diarization-3.1> and accept conditions
-   - Visit <https://hf.co/pyannote/segmentation-3.0> and accept conditions
-
-3. **Set Environment Variable**:
-
-   ```bash
-   export HUGGINGFACE_TOKEN=your_token_here
-   ```
-
-### Diarization Commands
+**Example**:
+To get notes specifically for a client call, which focuses on requirements, action items, and client concerns:
 
 ```bash
-# Complete diarization pipeline
-meeting-assistant diarize meeting.mp4
-
-# Specify number of speakers if known
-meeting-assistant diarize meeting.mp4 --num-speakers 3
-
-# Set speaker bounds for better accuracy
-meeting-assistant diarize meeting.mp4 --min-speakers 2 --max-speakers 5
-
-# Custom models and output paths
-meeting-assistant diarize meeting.mp4 \
-  --diarization-model pyannote/speaker-diarization-3.1 \
-  --save-transcription transcript_with_speakers.txt \
-  --save-rttm diarization.rttm \
-  --output summary_with_speakers.md
+meeting-assistant diarize client_call.mp4 --meeting-type client_call
 ```
 
-### Output Formats
+## Advanced Configuration
 
-- **Speaker-attributed transcript**: Text with speaker labels and timestamps
-- **RTTM file**: Standard diarization format for further processing
-- **Structured meeting notes**: Enhanced summaries with speaker attribution
+You can configure default models and other parameters by creating a `.env` file in the project's root directory.
 
-## Supported Formats
+**Example `.env` file:**
 
-- **Input**: MPEG-4 and other common audio/video formats supported by MLX Whisper
-- **Output**: Plain text transcriptions and summaries
+```
+# Set default models
+DEFAULT_TRANSCRIPTION_MODEL=mlx-community/whisper-large-v3-mlx
+DEFAULT_SUMMARIZATION_MODEL=mlx-community/Llama-3.1-8B-Instruct-4bit
+DEFAULT_DIARIZATION_MODEL=pyannote/speaker-diarization-3.1
 
-## Models
+# Set Hugging Face Token for diarization
+HUGGINGFACE_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx
 
-### Default Models
-
-- **Transcription**: `mlx-community/whisper-large-v3-mlx`
-- **Diarization**: `pyannote/speaker-diarization-3.1`
-- **Summarization**: `lmstudio-community/Qwen3-30B-A3B-8bit`
-
-### Custom Models
-
-All commands support custom model selection via `--model`, `--transcription-model`, `--diarization-model`, and `--summarization-model` flags. Models must be compatible with MLX Whisper, pyannote.audio, and MLX LM respectively.
-
-## Error Handling
-
-The tool provides clear error messages for:
-
-- Invalid file paths or formats
-- Model loading failures
-- MLX backend issues
-- File I/O operations
-- HuggingFace authentication issues
+# Configure Whisper transcription parameters
+WHISPER_TEMPERATURE=0.0
+WHISPER_NO_SPEECH_THRESHOLD=0.6
+```
 
 ## Development
 
-Run the tool in development mode:
+To run the tool directly from the source code for development, use `uv`:
 
 ```bash
-uv run python -m transcription_tool.cli --help
+# Run with --help to see all commands and options
+uv run python -m src.transcription_tool.cli --help
+
+# Example: Run the diarize command in development mode
+uv run python -m src.transcription_tool.cli diarize "path/to/audio.mp4"
 ```
 
-## Requirements
-
-- Python 3.12+
-- MLX-compatible hardware (Apple Silicon recommended)
-- HuggingFace token for diarization features
-- Required dependencies are automatically installed via uv
-
-## Example Usage
-
-### Basic Meeting Processing
-
-```bash
-# Simple transcription and summary
-meeting-assistant pipeline meeting.mp4
-
-# With speaker identification
-meeting-assistant diarize meeting.mp4 --min-speakers 2 --max-speakers 4
-```
-
-### Advanced Workflows
-
-```bash
-# High-quality transcription with custom models
-meeting-assistant diarize interview.m4a \
-  --transcription-model mlx-community/whisper-large-v3-turbo \
-  --diarization-model pyannote/speaker-diarization-3.1 \
-  --summarization-model mlx-community/Qwen3-30B-A3B-8bit \
-  --meeting-type interview \
-  --structured
-
-# Batch processing multiple files
-for file in meetings/*.mp4; do
-  meeting-assistant diarize "$file" --min-speakers 2 --max-speakers 6
-done
-```
-
-### Output Examples
-
-#### Speaker-Attributed Transcript
-
-```
-**Speaker_0:**
-[00:15] Welcome everyone to today's project review meeting.
-[00:22] Let's start by going through our progress from last week.
-
-**Speaker_1:**
-[00:35] Thanks for organizing this. I have updates on the backend implementation.
-[00:42] We've completed the API endpoints for user authentication.
-```
-
-#### Structured Meeting Notes with Speaker Attribution
-
-```markdown
-# Meeting Notes
-
-## Summary
-
-Project review meeting covering backend progress, frontend updates, and deployment planning with clear action items assigned.
-
-## Participants
-
-- Speaker_0: Project Manager (leading discussion)
-- Speaker_1: Backend Developer
-- Speaker_2: Frontend Developer
-
-## Decisions Made
-
-- Deploy to staging environment next week - Agreed by Speaker_0 and Speaker_1
-- Use React hooks for state management - Proposed by Speaker_2
-
-## Action Items
-
-- Complete API documentation - Assigned to Speaker_1 - Due Friday
-- Review UI mockups - Assigned to Speaker_2 - Due Wednesday
-```
